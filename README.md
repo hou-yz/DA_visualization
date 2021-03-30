@@ -1,7 +1,7 @@
 # Visualizing Adapted Knowledge in Domain Transfer
 
 ```
-@inproceedings{hou2021learning,
+@inproceedings{hou2021visualizing,
   title={Visualizing Adapted Knowledge in Domain Transfer},
   author={Hou, Yunzhong and Zheng, Liang},
   booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
