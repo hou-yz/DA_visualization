@@ -1,2 +1,2 @@
-from .da_trainer_shot import DATrainerShot
+from .da_trainer import DATrainer
 from .sfit_trainer import SFITTrainer

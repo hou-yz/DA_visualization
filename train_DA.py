@@ -15,7 +15,7 @@ import torchvision.transforms as T
 from torch.utils.data import DataLoader
 from SFIT import datasets
 from SFIT.models.classifier_shot import ClassifierShot, Discriminator
-from SFIT.trainers import DATrainerShot
+from SFIT.trainers import DATrainer
 from SFIT.utils.str2bool import str2bool
 from SFIT.utils.logger import Logger
 
@@ -122,17 +122,8 @@ def main(args):
     else:
         raise Exception('please choose dataset from [digits, office31, visda]')
 
-    if args.adda:
-        dirname = 'DA_adda'
-        args.shot = False
-    elif args.mmd:
-        dirname = 'DA_mmd'
-        args.shot = False
-    elif args.shot:
-        dirname = 'SFDA_shot'
+    if 'shot' in args.da_setting:
         args.batch_size = 64
-    else:
-        raise Exception()
 
     source_train_loader = DataLoader(source_train_dataset, batch_size=args.batch_size, shuffle=True,
                                      num_workers=args.num_workers, drop_last=True)
@@ -145,7 +136,7 @@ def main(args):
     target_test_loader = DataLoader(target_test_dataset, batch_size=args.batch_size, shuffle=False,
                                     num_workers=args.num_workers)
 
-    logdir = f'logs/{dirname}/{args.dataset}/s_{args.source}/t_{args.target}/' \
+    logdir = f'logs/{args.da_setting}/{args.dataset}/s_{args.source}/t_{args.target}/' \
              f'{"debug_" if is_debug else ""}{datetime.datetime.today():%Y-%m-%d_%H-%M-%S}/'
     print(logdir)
 
@@ -162,8 +153,8 @@ def main(args):
     print(vars(args))
 
     # model
-    teacher = ClassifierShot(n_classes, args.arch, args.bottleneck_dim, args.shot).cuda()
-    student = ClassifierShot(n_classes, args.arch, args.bottleneck_dim, args.shot).cuda()
+    teacher = ClassifierShot(n_classes, args.arch, args.bottleneck_dim, 'shot' in args.da_setting).cuda()
+    student = ClassifierShot(n_classes, args.arch, args.bottleneck_dim, 'shot' in args.da_setting).cuda()
     discriminator = Discriminator(args.bottleneck_dim).cuda()
 
     # optimizers
@@ -186,11 +177,11 @@ def main(args):
     scheduler_S = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer_S, args.epochs_S, 1)
     scheduler_D = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer_D, args.epochs_S, 1)
 
-    trainer = DATrainerShot(teacher, student, discriminator, logdir, args.adda, args.mmd, args.shot, args.teacher_LSR,
-                            args.dataset == 'visda')
+    trainer = DATrainer(teacher, student, discriminator, logdir, args.da_setting, args.teacher_LSR,
+                        args.dataset == 'visda')
 
     # teacher
-    pretrain_dir = f'logs/{dirname}/{args.dataset}/s_{args.source}/source_model.pth'
+    pretrain_dir = f'logs/{args.da_setting}/{args.dataset}/s_{args.source}/source_model.pth'
     if os.path.exists(pretrain_dir) and not args.force_train_T:
         print(f'Loading Teacher at: {pretrain_dir}...')
         teacher.load_state_dict(torch.load(pretrain_dir))
@@ -215,7 +206,7 @@ def main(args):
     trainer.test_teacher(target_test_loader)
 
     # student
-    student_dir = f'logs/{dirname}/{args.dataset}/s_{args.source}/t_{args.target}/target_model.pth'
+    student_dir = f'logs/{args.da_setting}/{args.dataset}/s_{args.source}/t_{args.target}/target_model.pth'
     print(f'Initialize Student with Teacher...')
     student.load_state_dict(teacher.state_dict())
     for epoch in tqdm(range(1, args.epochs_S + 1)):
@@ -251,9 +242,7 @@ if __name__ == '__main__':
     # teacher
     parser.add_argument('--teacher_LSR', type=str2bool, default=True)
     # student
-    parser.add_argument('--shot', type=str2bool, default=True)
-    parser.add_argument('--mmd', action='store_true', default=False)
-    parser.add_argument('--adda', action='store_true', default=False)
+    parser.add_argument('--da_setting', type=str, default='shot', choices=['shot', 'mmd', 'adda'])
     parser.add_argument('--epochs_T', type=int, default=30, help='number of epochs to train')
     parser.add_argument('--epochs_S', type=int, default=30, help='number of epochs to train')
     parser.add_argument('--restart', type=float, default=1)

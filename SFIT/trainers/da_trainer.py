@@ -1,19 +1,17 @@
-from itertools import cycle
 import time
 import numpy as np
 import torch
 from torch import nn
 import torch.nn.functional as F
-from torchvision.utils import save_image, make_grid
 from sklearn.metrics import confusion_matrix
 from SFIT.loss import *
 from SFIT.utils.meters import AverageMeter
 
 
-class DATrainerShot(object):
-    def __init__(self, teacher, student, discriminator, logdir, adda, mmd, shot=True, teacher_LSR=True,
+class DATrainer(object):
+    def __init__(self, teacher, student, discriminator, logdir, da_setting, teacher_LSR=True,
                  test_visda=False):
-        super(DATrainerShot, self).__init__()
+        super(DATrainer, self).__init__()
         self.teacher = teacher
         self.student = student
         self.discriminator = discriminator
@@ -22,9 +20,7 @@ class DATrainerShot(object):
         self.LSR_loss = LabelSmoothLoss()
         self.D_loss = nn.BCEWithLogitsLoss()
         self.MMD_loss = MMDLoss()
-        self.adda = adda
-        self.mmd = mmd
-        self.shot = shot
+        self.da_setting = da_setting
         self.teacher_LSR = teacher_LSR
         self.logdir = logdir
         self.test_visda = test_visda
@@ -41,7 +37,7 @@ class DATrainerShot(object):
             pred = torch.argmax(output, 1)
             correct += pred.eq(target).sum().item()
             miss += target.shape[0] - pred.eq(target).sum().item()
-            if self.teacher_LSR and self.shot:
+            if self.teacher_LSR and 'shot' in self.da_setting:
                 loss = self.LSR_loss(output, target)
             else:
                 loss = self.CE_loss(output, target)
@@ -90,7 +86,7 @@ class DATrainerShot(object):
             tgt_img = tgt_img.cuda()
 
             # SHOT loss
-            if self.shot:
+            if 'shot' in self.da_setting:
                 output_tgt = self.student(tgt_img)
                 # higher conf -> reduce entropy of each image decision
                 loss_c = self.H_loss(output_tgt)
@@ -101,7 +97,7 @@ class DATrainerShot(object):
             else:
                 # source domain
                 output_tgt, tgt_feat = self.student(tgt_img, True)
-                if self.adda:
+                if 'adda' in self.da_setting:
                     # update D
                     output_src, src_feat = self.teacher(src_img, True)
                     src_gt_validity = torch.ones([src_img.shape[0], 1], requires_grad=False).cuda()
@@ -116,7 +112,7 @@ class DATrainerShot(object):
                     output_tgt, tgt_feat = self.student(tgt_img, True)
                     tgt_validity = self.discriminator(tgt_feat[-1])
                     loss = self.D_loss(tgt_validity, src_gt_validity)
-                elif self.mmd:
+                elif 'mmd' in self.da_setting:
                     output_src, src_feat = self.student(src_img, True)
                     loss_c = self.CE_loss(output_src, src_label)
                     loss_d = self.MMD_loss(src_feat[-1], tgt_feat[-1])
@@ -137,8 +133,8 @@ class DATrainerShot(object):
                         scheduler.step()
 
             if isinstance(schedulers, list):
-                for scheduler in schedulers:
-                    adjust(scheduler)
+                for one_scheduler in schedulers:
+                    adjust(one_scheduler)
             else:
                 adjust(schedulers)
 

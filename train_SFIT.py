@@ -130,14 +130,16 @@ def main(args):
     target_test_loader = DataLoader(target_test_dataset, batch_size=64, shuffle=True,
                                     num_workers=args.num_workers)
 
+    args.force_pretrain_G = args.force_pretrain_G or not os.path.exists(
+        f'logs/SFIT/{args.dataset}/s_{args.source}/t_{args.target}/model_G_transparent.pth')
     if args.resume:
         splits = args.resume.split('_')
-        args.da_setting = f'{splits[0]}_{splits[1]}'
+        args.da_setting = f'{splits[0]}'
         fname = f'{"debug_" if is_debug else ""}{args.da_setting}_R'
+        # args.force_pretrain_G, args.train_G = False, False
     else:
         fname = f'{"debug_" if is_debug else ""}{args.da_setting}_'
-        if args.force_pretrain_G or not os.path.exists(
-                f'logs/SFIT/{args.dataset}/s_{args.source}/t_{args.target}/model_G_transparent.pth'):
+        if args.force_pretrain_G:
             fname += 'G0'
         if args.train_G:
             fname += 'G'
@@ -162,9 +164,9 @@ def main(args):
     print(vars(args))
 
     # model
-    teacher = ClassifierShot(n_classes, args.arch, args.bottleneck_dim, args.da_setting == 'SFDA_shot').cuda()
+    teacher = ClassifierShot(n_classes, args.arch, args.bottleneck_dim, 'shot' in args.da_setting).cuda()
     generator = GeneratorResNet(num_colors=num_colors).cuda()
-    student = ClassifierShot(n_classes, args.arch, args.bottleneck_dim, args.da_setting == 'SFDA_shot').cuda()
+    student = ClassifierShot(n_classes, args.arch, args.bottleneck_dim, 'shot' in args.da_setting).cuda()
 
     optimizer_G = optim.Adam(generator.parameters(), lr=args.lr_G)
 
@@ -205,7 +207,7 @@ def main(args):
 
     # pre-train G
     fpath = f'logs/SFIT/{args.dataset}/s_{args.source}/t_{args.target}/model_G_transparent.pth'
-    if os.path.exists(fpath) and not args.force_pretrain_G:
+    if not args.force_pretrain_G:
         print(f'Load pre-trained Generator at: {fpath}')
         generator.load_state_dict(torch.load(fpath))
     elif args.train_G:
@@ -286,7 +288,7 @@ if __name__ == '__main__':
     parser.add_argument('-j', '--num_workers', type=int, default=4)
     parser.add_argument('-b', '--batch-size', type=int, default=16, metavar='N',
                         help='input batch size for training (default: 64)')
-    parser.add_argument('--da_setting', type=str, default='SFDA_shot', choices=['SFDA_shot', 'DA_mmd', 'DA_adda'])
+    parser.add_argument('--da_setting', type=str, default='shot', choices=['shot', 'mmd', 'adda'])
     parser.add_argument('--force_pretrain_G', default=False, action='store_true')
     parser.add_argument('--train_G', type=str2bool, default=True)
     parser.add_argument('--resume', type=str, default=None)

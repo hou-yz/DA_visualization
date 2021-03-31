@@ -15,7 +15,7 @@ from SFIT.utils.meters import AverageMeter
 
 class SFITTrainer(object):
     def __init__(self, teacher, generator, student, logdir, KD_T, use_channel, ratios, confidence_thres, mAvrgAlpha,
-                 use_dann=0, use_mmd=0, n_epochs=200, teacher_LSR=False, test_visda=False):
+                 teacher_LSR=False, test_visda=False):
         super(SFITTrainer, self).__init__()
         self.teacher = teacher
         self.generator = generator
@@ -41,9 +41,6 @@ class SFITTrainer(object):
         self.channel_loss = ChannelLoss2D() if use_channel else StyleLoss()
         self.channel_loss_1d = ChannelLoss()
         self.mAvrgAlpha = mAvrgAlpha
-        self.n_epochs = n_epochs
-        self.use_dann = use_dann
-        self.use_mmd = use_mmd
 
         # self.confidence_thres = confidence_thres
         self.conf_ratio, self.div_ratio, self.js_ratio, self.bn_ratio, self.style_ratio, self.channel_ratio, self.content_ratio, \
