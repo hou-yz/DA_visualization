@@ -54,9 +54,9 @@ def main(args):
         args.tv_ratio = 3e-2
 
         if args.source == 'svhn' and args.target == 'mnist':
-            source_trans = T.Compose([T.Resize(32), T.ToTensor(), T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+            source_trans = T.Compose([T.Resize(32), T.ToTensor(), T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])])
             target_trans = T.Compose([T.Resize(32), T.Lambda(lambda x: x.convert("RGB")),
-                                      T.ToTensor(), T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+                                      T.ToTensor(), T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])])
             source_test_dataset = datasets.SVHN(f'{data_path}/svhn', split='test', download=True,
                                                 transform=source_trans)
             target_train_dataset = datasets.MNIST(f'{data_path}/mnist', train=True, download=True,
@@ -66,8 +66,8 @@ def main(args):
             args.arch = 'dtn'
         elif args.source == 'usps' and args.target == 'mnist':
             source_trans = T.Compose([T.RandomCrop(28, padding=4), T.RandomRotation(10),
-                                      T.ToTensor(), T.Normalize((0.5,), (0.5,))])
-            target_trans = T.Compose([T.ToTensor(), T.Normalize((0.5,), (0.5,))])
+                                      T.ToTensor(), T.Normalize([0.5, ], [0.5, ])])
+            target_trans = T.Compose([T.ToTensor(), T.Normalize([0.5, ], [0.5, ])])
             source_test_dataset = datasets.USPS(f'{data_path}/usps', train=False, download=True, transform=source_trans)
             target_train_dataset = datasets.MNIST(f'{data_path}/mnist', train=True, download=True,
                                                   transform=target_trans)
@@ -76,8 +76,8 @@ def main(args):
             args.arch = 'lenet'
             num_colors = 1
         elif args.source == 'mnist' and args.target == 'usps':
-            source_trans = T.Compose([T.ToTensor(), T.Normalize((0.5,), (0.5,))])
-            target_trans = T.Compose([T.ToTensor(), T.Normalize((0.5,), (0.5,))])
+            source_trans = T.Compose([T.ToTensor(), T.Normalize([0.5, ], [0.5, ])])
+            target_trans = T.Compose([T.ToTensor(), T.Normalize([0.5, ], [0.5, ])])
             source_test_dataset = datasets.MNIST(f'{data_path}/mnist', train=False, download=True,
                                                  transform=source_trans)
             target_train_dataset = datasets.USPS(f'{data_path}/usps', train=True, download=True, transform=target_trans)
@@ -89,14 +89,14 @@ def main(args):
     elif args.dataset == 'office31':
         n_classes = 31
         use_src_test = False
-        args.epochs_S = 15
+        args.epochs_T = 15
         args.G_wait = 50
         args.epochs_G = 50
         if args.arch is None: args.arch = 'resnet50'
         train_trans = T.Compose([T.Resize([256, 256]), T.RandomCrop(224), T.RandomHorizontalFlip(), T.ToTensor(),
-                                 T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)), ])
+                                 T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]), ])
         test_trans = T.Compose([T.Resize([256, 256]), T.CenterCrop(224), T.ToTensor(),
-                                T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)), ])
+                                T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]), ])
 
         source_test_dataset = datasets.ImageFolder(f'{data_path}/{args.source}/images', transform=train_trans)
         target_train_dataset = datasets.ImageFolder(f'{data_path}/{args.target}/images', transform=train_trans)
@@ -104,16 +104,16 @@ def main(args):
     elif args.dataset == 'visda':
         n_classes = 12
         use_src_test = False
-        args.lr_S *= 0.1
-        args.epochs_S = 5
+        args.lr_T *= 0.1
+        args.epochs_T = 5
         args.G_wait = 5
         args.epochs_G = 20
         if args.arch is None: args.arch = 'resnet101'
         args.source, args.target = 'syn', 'real'
         train_trans = T.Compose([T.Resize([256, 256]), T.RandomCrop(224), T.RandomHorizontalFlip(), T.ToTensor(),
-                                 T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)), ])
+                                 T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]), ])
         test_trans = T.Compose([T.Resize([256, 256]), T.CenterCrop(224), T.ToTensor(),
-                                T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)), ])
+                                T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]), ])
 
         source_test_dataset = datasets.ImageFolder(f'{data_path}/train', transform=train_trans)
         target_train_dataset = datasets.ImageFolder(f'{data_path}/validation', transform=train_trans)
@@ -143,8 +143,8 @@ def main(args):
             fname += 'G0'
         if args.train_G:
             fname += 'G'
-    if args.retrain_S:
-        fname += 'S'
+    if args.retrain_T:
+        fname += 'T'
 
     logdir = f'logs/SFIT/{args.dataset}/s_{args.source}/t_{args.target}/{fname}' \
              f'_conf{args.conf_ratio}_bn{args.bn_ratio}_channel{args.channel_ratio}_content{args.content_ratio}_' \
@@ -164,60 +164,60 @@ def main(args):
     print(vars(args))
 
     # model
-    teacher = ClassifierShot(n_classes, args.arch, args.bottleneck_dim, 'shot' in args.da_setting).cuda()
-    generator = GeneratorResNet(num_colors=num_colors).cuda()
-    student = ClassifierShot(n_classes, args.arch, args.bottleneck_dim, 'shot' in args.da_setting).cuda()
+    net_G = GeneratorResNet(num_colors=num_colors).cuda()
+    net_S = ClassifierShot(n_classes, args.arch, args.bottleneck_dim, 'shot' in args.da_setting).cuda()
+    net_T = ClassifierShot(n_classes, args.arch, args.bottleneck_dim, 'shot' in args.da_setting).cuda()
 
-    optimizer_G = optim.Adam(generator.parameters(), lr=args.lr_G)
+    optimizer_G = optim.Adam(net_G.parameters(), lr=args.lr_G)
 
-    trainer = SFITTrainer(teacher, generator, student, logdir, args.KD_T, args.use_channel,
+    trainer = SFITTrainer(net_G, net_S, net_T, logdir, args.KD_T, args.use_channel,
                           (args.conf_ratio, args.div_ratio, args.js_ratio,
                            args.bn_ratio, args.style_ratio, args.channel_ratio, args.content_ratio,
                            args.a_ratio, args.semantic_ratio, args.id_ratio, args.kd_ratio,
                            args.sim_ratio, args.tv_ratio,
-                           args.S_semantic_ratio, args.S_sim_ratio), args.thres_confidence,
-                          args.mAvrgAlpha, teacher_LSR=args.teacher_LSR, test_visda=args.dataset == 'visda')
+                           args.T_semantic_ratio, args.T_sim_ratio), args.thres_confidence,
+                          args.mAvrgAlpha, test_visda=args.dataset == 'visda')
 
-    # teacher
+    # source network
     fpath = f'logs/{args.da_setting}/{args.dataset}/s_{args.source}/source_model.pth'
     if os.path.exists(fpath):
-        print(f'Loading Teacher at: {fpath}...')
-        teacher.load_state_dict(torch.load(fpath))
+        print(f'Loading source network at: {fpath}...')
+        net_S.load_state_dict(torch.load(fpath))
         pass
     else:
         raise Exception
-    print('Testing Teacher on [source]...')
-    trainer.test_teacher(source_test_loader, 'src')
+    print('Testing source network on [source]...')
+    trainer.test_net_S(source_test_loader, 'src')
     print('##############################################################')
-    print('Testing Teacher on [target]...')
+    print('Testing source network on [target]...')
     print('##############################################################')
-    trainer.test_teacher(target_test_loader, 'tgt')
+    trainer.test_net_S(target_test_loader, 'tgt')
 
-    # student
+    # target network
     fpath = f'logs/{args.da_setting}/{args.dataset}/s_{args.source}/t_{args.target}/target_model.pth'
     if os.path.exists(fpath):
-        print(f'Loading pre-trained Student at: {fpath}...')
-        student.load_state_dict(torch.load(fpath))
+        print(f'Loading pre-trained target model at: {fpath}...')
+        net_T.load_state_dict(torch.load(fpath))
     else:
         raise Exception
     print('##############################################################')
-    print('Testing Student on [target]...')
+    print('Testing target model on [target]...')
     print('##############################################################')
     trainer.test(target_test_loader)
 
-    # pre-train G
+    # pre-train generator
     fpath = f'logs/SFIT/{args.dataset}/s_{args.source}/t_{args.target}/model_G_transparent.pth'
     if not args.force_pretrain_G:
         print(f'Load pre-trained Generator at: {fpath}')
-        generator.load_state_dict(torch.load(fpath))
+        net_G.load_state_dict(torch.load(fpath))
     elif args.train_G:
         scheduler_G = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer_G, args.G_wait, 1)
         for epoch in tqdm(range(1, args.G_wait + 1)):
             print('Pre-training Generator...')
-            trainer.train_generator(epoch, target_train_loader, optimizer_G, pretrain=True, scheduler=scheduler_G)
+            trainer.train_net_G(epoch, target_train_loader, optimizer_G, pretrain=True, scheduler=scheduler_G)
             print('Testing Generator on [target]...')
             trainer.test(target_test_loader, epoch, use_generator=True)
-        torch.save(generator.state_dict(), fpath)
+        torch.save(net_G.state_dict(), fpath)
     else:
         print('skip pre-training Generator')
         pass
@@ -230,15 +230,15 @@ def main(args):
     if args.resume:
         fpath = f'logs/SFIT/{args.dataset}/s_{args.source}/t_{args.target}/{args.resume}/model_G.pth'
         print(f'Load trained Generator at: {fpath}')
-        generator.load_state_dict(torch.load(fpath))
+        net_G.load_state_dict(torch.load(fpath))
     elif args.train_G:
         scheduler_G = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer_G, args.epochs_G, 1)
         for epoch in tqdm(range(1, args.epochs_G + 1)):
             print('Training Generator...')
-            trainer.train_generator(epoch, target_train_loader, optimizer_G, scheduler=scheduler_G)
+            trainer.train_net_G(epoch, target_train_loader, optimizer_G, scheduler=scheduler_G)
             print('Testing Generator on [target]...')
             trainer.test(target_test_loader, epoch, use_generator=True)
-            torch.save(generator.state_dict(), os.path.join(logdir, 'model_G.pth'))
+            torch.save(net_G.state_dict(), os.path.join(logdir, 'model_G.pth'))
     else:
         print('skip training Generator')
         pass
@@ -247,32 +247,32 @@ def main(args):
     print('##############################################################')
     trainer.test(target_test_loader, use_generator=True)
 
-    # retrain student
-    if args.retrain_S:
-        args.lr_S *= 0.5
+    # retrain target network
+    if args.retrain_T:
+        args.lr_T *= 0.5
         if 'resnet' not in args.arch:
-            optimizer_S = optim.SGD(list(student.base.parameters()) + list(student.bottleneck.parameters()),
-                                    lr=args.lr_S, weight_decay=1e-3, momentum=0.9, nesterov=True)
+            optimizer_T = optim.SGD(list(net_T.base.parameters()) + list(net_T.bottleneck.parameters()),
+                                    lr=args.lr_T, weight_decay=1e-3, momentum=0.9, nesterov=True)
         else:
-            optimizer_S = optim.SGD([{'params': student.base.parameters(), 'lr': args.lr_S * 0.1},
-                                     {'params': student.bottleneck.parameters()}],
-                                    lr=args.lr_S, weight_decay=1e-3, momentum=0.9, nesterov=True)
-        scheduler_S = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer_S, args.epochs_S, 1)
-        for epoch in tqdm(range(1, args.epochs_S + 1)):
-            print('Training Student...')
-            trainer.train_student(epoch, target_train_loader_32, optimizer_S, scheduler_S, use_generator=args.train_G)
+            optimizer_T = optim.SGD([{'params': net_T.base.parameters(), 'lr': args.lr_T * 0.1},
+                                     {'params': net_T.bottleneck.parameters()}],
+                                    lr=args.lr_T, weight_decay=1e-3, momentum=0.9, nesterov=True)
+        scheduler_T = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer_T, args.epochs_T, 1)
+        for epoch in tqdm(range(1, args.epochs_T + 1)):
+            print('Re-training target model...')
+            trainer.train_net_T(epoch, target_train_loader_32, optimizer_T, scheduler_T, use_generator=args.train_G)
             if use_src_test:
-                print('Testing Student on [source]...')
+                print('Testing re-trained target model on [source]...')
                 trainer.test(source_test_loader)
-            print('Testing Student on [target]...')
+            print('Testing re-trained target model on [target]...')
             trainer.test(target_test_loader)
-        torch.save(student.state_dict(), os.path.join(logdir, 'target_model_retrain.pth'))
+        torch.save(net_T.state_dict(), os.path.join(logdir, 'target_model_retrain.pth'))
         print('##############################################################')
-        print('Testing retrained Student on [target]...')
+        print('Testing re-trained target model on [target]...')
         print('##############################################################')
         trainer.test(target_test_loader)
     else:
-        print('skip re-training Student')
+        print('skip re-training target model')
         pass
 
 
@@ -292,10 +292,10 @@ if __name__ == '__main__':
     parser.add_argument('--force_pretrain_G', default=False, action='store_true')
     parser.add_argument('--train_G', type=str2bool, default=True)
     parser.add_argument('--resume', type=str, default=None)
-    parser.add_argument('--retrain_S', default=False, action='store_true')
-    # teacher
-    parser.add_argument('--teacher_LSR', type=str2bool, default=True)
-    # student
+    parser.add_argument('--retrain_T', default=False, action='store_true')
+    # source model
+    parser.add_argument('--source_LSR', type=str2bool, default=True)
+    # generator
     parser.add_argument('--mAvrgAlpha', type=float, default=1)
     parser.add_argument('--a_ratio', type=float, default=0)
     parser.add_argument('--conf_ratio', type=float, default=0)
@@ -309,19 +309,20 @@ if __name__ == '__main__':
     parser.add_argument('--kd_ratio', type=float, default=1)
     parser.add_argument('--semantic_ratio', type=float, default=0)
     parser.add_argument('--sim_ratio', type=float, default=0)
-    parser.add_argument('--S_semantic_ratio', type=float, default=0)
-    parser.add_argument('--S_sim_ratio', type=float, default=0)
     parser.add_argument('--tv_ratio', type=float, default=0)
     parser.add_argument('--use_channel', type=str2bool, default=True)
-    parser.add_argument('--thres_confidence', type=float, default=0.95)
     parser.add_argument('--KD_T', type=float, default=1,
                         help='>1 to smooth probabilities in divergence loss, or <1 to sharpen them')
+    # target model
+    parser.add_argument('--thres_confidence', type=float, default=0.95)
+    parser.add_argument('--T_semantic_ratio', type=float, default=0)
+    parser.add_argument('--T_sim_ratio', type=float, default=0)
     parser.add_argument('--G_wait', type=int, default=10)
     parser.add_argument('--epochs_G', type=int, default=30, help='number of epochs to train')
-    parser.add_argument('--epochs_S', type=int, default=30, help='number of epochs to train')
+    parser.add_argument('--epochs_T', type=int, default=30, help='number of epochs to train')
     parser.add_argument('--restart', type=int, default=1)
     parser.add_argument('--lr_G', type=float, default=3e-4, help='generator learning rate')
-    parser.add_argument('--lr_S', type=float, default=1e-2, help='student learning rate')
+    parser.add_argument('--lr_T', type=float, default=1e-2, help='target model learning rate')
     parser.add_argument('--seed', type=int, default=None, help='random seed')
     args = parser.parse_args()
     main(args)

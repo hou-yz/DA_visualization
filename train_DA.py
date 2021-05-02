@@ -50,9 +50,9 @@ def main(args):
         args.batch_size = 64
 
         if args.source == 'svhn' and args.target == 'mnist':
-            source_trans = T.Compose([T.Resize(32), T.ToTensor(), T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+            source_trans = T.Compose([T.Resize(32), T.ToTensor(), T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])])
             target_trans = T.Compose([T.Resize(32), T.Lambda(lambda x: x.convert("RGB")),
-                                      T.ToTensor(), T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+                                      T.ToTensor(), T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])])
             source_train_dataset = datasets.SVHN(f'{data_path}/svhn', split='train', download=True,
                                                  transform=source_trans)
             source_test_dataset = datasets.SVHN(f'{data_path}/svhn', split='test', download=True,
@@ -64,8 +64,8 @@ def main(args):
             args.arch = 'dtn'
         elif args.source == 'usps' and args.target == 'mnist':
             source_trans = T.Compose([T.RandomCrop(28, padding=4), T.RandomRotation(10),
-                                      T.ToTensor(), T.Normalize((0.5,), (0.5,))])
-            target_trans = T.Compose([T.ToTensor(), T.Normalize((0.5,), (0.5,))])
+                                      T.ToTensor(), T.Normalize([0.5, ], [0.5, ])])
+            target_trans = T.Compose([T.ToTensor(), T.Normalize([0.5, ], [0.5, ])])
             source_train_dataset = datasets.USPS(f'{data_path}/usps', train=True, download=True, transform=source_trans)
             source_test_dataset = datasets.USPS(f'{data_path}/usps', train=False, download=True, transform=source_trans)
             target_train_dataset = datasets.MNIST(f'{data_path}/mnist', train=True, download=True,
@@ -74,8 +74,8 @@ def main(args):
                                                  transform=target_trans)
             args.arch = 'lenet'
         elif args.source == 'mnist' and args.target == 'usps':
-            source_trans = T.Compose([T.ToTensor(), T.Normalize((0.5,), (0.5,))])
-            target_trans = T.Compose([T.ToTensor(), T.Normalize((0.5,), (0.5,))])
+            source_trans = T.Compose([T.ToTensor(), T.Normalize([0.5, ], [0.5, ])])
+            target_trans = T.Compose([T.ToTensor(), T.Normalize([0.5, ], [0.5, ])])
             source_train_dataset = datasets.MNIST(f'{data_path}/mnist', train=True, download=True,
                                                   transform=source_trans)
             source_test_dataset = datasets.MNIST(f'{data_path}/mnist', train=False, download=True,
@@ -88,13 +88,13 @@ def main(args):
     elif args.dataset == 'office31':
         n_classes = 31
         use_src_test = False
-        args.epochs_T = 100
-        args.epochs_S = 15
+        args.epochs_S = 100
+        args.epochs_T = 15
         if args.arch is None: args.arch = 'resnet50'
         train_trans = T.Compose([T.Resize([256, 256]), T.RandomCrop(224), T.RandomHorizontalFlip(), T.ToTensor(),
-                                 T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)), ])
+                                 T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]), ])
         test_trans = T.Compose([T.Resize([256, 256]), T.CenterCrop(224), T.ToTensor(),
-                                T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)), ])
+                                T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]), ])
 
         source_train_dataset = datasets.ImageFolder(f'{data_path}/{args.source}/images', transform=train_trans)
         source_test_dataset = datasets.ImageFolder(f'{data_path}/{args.source}/images', transform=train_trans)
@@ -103,17 +103,17 @@ def main(args):
     elif args.dataset == 'visda':
         n_classes = 12
         use_src_test = False
-        args.lr_T *= 0.1
-        args.lr_S *= 0.1
         args.lr_D *= 0.1
-        args.epochs_T = 10
-        args.epochs_S = 5
+        args.lr_S *= 0.1
+        args.lr_T *= 0.1
+        args.epochs_S = 10
+        args.epochs_T = 5
         if args.arch is None: args.arch = 'resnet101'
         args.source, args.target = 'syn', 'real'
         train_trans = T.Compose([T.Resize([256, 256]), T.RandomCrop(224), T.RandomHorizontalFlip(), T.ToTensor(),
-                                 T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)), ])
+                                 T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]), ])
         test_trans = T.Compose([T.Resize([256, 256]), T.CenterCrop(224), T.ToTensor(),
-                                T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)), ])
+                                T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]), ])
 
         source_train_dataset = datasets.ImageFolder(f'{data_path}/train', transform=train_trans)
         source_test_dataset = datasets.ImageFolder(f'{data_path}/train', transform=train_trans)
@@ -153,77 +153,77 @@ def main(args):
     print(vars(args))
 
     # model
-    teacher = ClassifierShot(n_classes, args.arch, args.bottleneck_dim, 'shot' in args.da_setting).cuda()
-    student = ClassifierShot(n_classes, args.arch, args.bottleneck_dim, 'shot' in args.da_setting).cuda()
-    discriminator = Discriminator(args.bottleneck_dim).cuda()
+    net_D = Discriminator(args.bottleneck_dim).cuda()
+    net_S = ClassifierShot(n_classes, args.arch, args.bottleneck_dim, 'shot' in args.da_setting).cuda()
+    net_T = ClassifierShot(n_classes, args.arch, args.bottleneck_dim, 'shot' in args.da_setting).cuda()
 
     # optimizers
+    optimizer_D = optim.SGD(net_D.parameters(), lr=args.lr_D, weight_decay=1e-3, momentum=0.9, nesterov=True)
     if 'resnet' not in args.arch:
-        optimizer_T = optim.SGD(teacher.parameters(), lr=args.lr_T, weight_decay=1e-3, momentum=0.9, nesterov=True)
-        optimizer_S = optim.SGD(list(student.base.parameters()),  # + list(student.bottleneck.parameters()),
-                                lr=args.lr_S, weight_decay=1e-3, momentum=0.9, nesterov=True)
-    else:
-        optimizer_T = optim.SGD([{'params': teacher.base.parameters(), 'lr': args.lr_T * 0.1},
-                                 {'params': teacher.bottleneck.parameters()},
-                                 {'params': teacher.classifier.parameters()}],
+        optimizer_S = optim.SGD(net_S.parameters(), lr=args.lr_S, weight_decay=1e-3, momentum=0.9, nesterov=True)
+        optimizer_T = optim.SGD(list(net_T.base.parameters()),  # + list(net_T.bottleneck.parameters()),
                                 lr=args.lr_T, weight_decay=1e-3, momentum=0.9, nesterov=True)
-        optimizer_S = optim.SGD([{'params': student.base.parameters(), 'lr': args.lr_S * 0.1}, ],
-                                # {'params': student.bottleneck.parameters()}],
+    else:
+        optimizer_S = optim.SGD([{'params': net_S.base.parameters(), 'lr': args.lr_S * 0.1},
+                                 {'params': net_S.bottleneck.parameters()},
+                                 {'params': net_S.classifier.parameters()}],
                                 lr=args.lr_S, weight_decay=1e-3, momentum=0.9, nesterov=True)
-    optimizer_D = optim.SGD(discriminator.parameters(), lr=args.lr_D, weight_decay=1e-3, momentum=0.9, nesterov=True)
+        optimizer_T = optim.SGD([{'params': net_T.base.parameters(), 'lr': args.lr_T * 0.1}, ],
+                                # {'params': net_T.bottleneck.parameters()}],
+                                lr=args.lr_T, weight_decay=1e-3, momentum=0.9, nesterov=True)
 
     # schedulers
-    scheduler_T = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer_T, args.epochs_T, 1)
+    scheduler_D = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer_D, args.epochs_T, 1)
     scheduler_S = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer_S, args.epochs_S, 1)
-    scheduler_D = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer_D, args.epochs_S, 1)
+    scheduler_T = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer_T, args.epochs_T, 1)
 
-    trainer = DATrainer(teacher, student, discriminator, logdir, args.da_setting, args.teacher_LSR,
+    trainer = DATrainer(net_D, net_S, net_T, logdir, args.da_setting, args.source_LSR,
                         args.dataset == 'visda')
 
-    # teacher
-    pretrain_dir = f'logs/{args.da_setting}/{args.dataset}/s_{args.source}/source_model.pth'
-    if os.path.exists(pretrain_dir) and not args.force_train_T:
-        print(f'Loading Teacher at: {pretrain_dir}...')
-        teacher.load_state_dict(torch.load(pretrain_dir))
+    # source model
+    net_S_fpath = f'logs/{args.da_setting}/{args.dataset}/s_{args.source}/source_model.pth'
+    if os.path.exists(net_S_fpath) and not args.force_train_S:
+        print(f'Loading source model at: {net_S_fpath}...')
+        net_S.load_state_dict(torch.load(net_S_fpath))
         pass
     else:
-        print('Training Teacher...')
-        for epoch in tqdm(range(1, args.epochs_T + 1)):
-            trainer.train_teacher(epoch, source_train_loader_64, optimizer_T, scheduler_T)
-            if epoch % (max(args.epochs_T // 10, 1)) == 0:
+        print('Training source model...')
+        for epoch in tqdm(range(1, args.epochs_S + 1)):
+            trainer.train_net_S(epoch, source_train_loader_64, optimizer_S, scheduler_S)
+            if epoch % (max(args.epochs_S // 10, 1)) == 0:
                 if use_src_test:
-                    print('Testing Teacher on [source]...')
-                    trainer.test_teacher(source_test_loader)
-                print('Testing Teacher on [target]...')
-                trainer.test_teacher(target_test_loader)
-        torch.save(teacher.state_dict(), pretrain_dir)
-        torch.save(teacher.state_dict(), logdir + 'source_model.pth')
-    print('Testing Teacher on [source]...')
-    trainer.test_teacher(source_test_loader)
+                    print('Testing source model on [source]...')
+                    trainer.test_net_S(source_test_loader)
+                print('Testing source model on [target]...')
+                trainer.test_net_S(target_test_loader)
+        torch.save(net_S.state_dict(), net_S_fpath)
+        torch.save(net_S.state_dict(), logdir + 'source_model.pth')
+    print('Testing source model on [source]...')
+    trainer.test_net_S(source_test_loader)
     print('##############################################################')
-    print('Testing Teacher on [target]...')
+    print('Testing source model on [target]...')
     print('##############################################################')
-    trainer.test_teacher(target_test_loader)
+    trainer.test_net_S(target_test_loader)
 
-    # student
-    student_dir = f'logs/{args.da_setting}/{args.dataset}/s_{args.source}/t_{args.target}/target_model.pth'
-    print(f'Initialize Student with Teacher...')
-    student.load_state_dict(teacher.state_dict())
-    for epoch in tqdm(range(1, args.epochs_S + 1)):
-        print('Training Student...')
-        trainer.train_student(epoch, source_train_loader, target_train_loader, optimizer_S, optimizer_D,
-                              [scheduler_S, scheduler_D])
+    # target model & discriminator
+    net_T_fpath = f'logs/{args.da_setting}/{args.dataset}/s_{args.source}/t_{args.target}/target_model.pth'
+    print(f'Initialize target model with source model...')
+    net_T.load_state_dict(net_S.state_dict())
+    for epoch in tqdm(range(1, args.epochs_T + 1)):
+        print('Training target model...')
+        trainer.train_net_T(epoch, source_train_loader, target_train_loader, optimizer_T, optimizer_D,
+                            [scheduler_T, scheduler_D])
         if use_src_test:
-            print('Testing Student on [source]...')
-            trainer.test(source_test_loader)
-        print('Testing Student on [target]...')
-        trainer.test(target_test_loader)
-        torch.save(student.state_dict(), student_dir)
-        torch.save(student.state_dict(), logdir + 'target_model.pth')
+            print('Testing target model on [source]...')
+            trainer.test_net_T(source_test_loader)
+        print('Testing target model on [target]...')
+        trainer.test_net_T(target_test_loader)
+        torch.save(net_T.state_dict(), net_T_fpath)
+        torch.save(net_T.state_dict(), logdir + 'target_model.pth')
     print('##############################################################')
-    print('Testing Student on [target]...')
+    print('Testing target model on [target]...')
     print('##############################################################')
-    trainer.test(target_test_loader)
+    trainer.test_net_T(target_test_loader)
 
 
 if __name__ == '__main__':
@@ -238,17 +238,17 @@ if __name__ == '__main__':
     parser.add_argument('-j', '--num_workers', type=int, default=4)
     parser.add_argument('-b', '--batch-size', type=int, default=32, metavar='N',
                         help='input batch size for training (default: 64)')
-    parser.add_argument('--force_train_T', action='store_true', default=False)
-    # teacher
-    parser.add_argument('--teacher_LSR', type=str2bool, default=True)
-    # student
+    parser.add_argument('--force_train_S', action='store_true', default=False)
+    # source model
+    parser.add_argument('--source_LSR', type=str2bool, default=True)
+    # target model
     parser.add_argument('--da_setting', type=str, default='shot', choices=['shot', 'mmd', 'adda'])
-    parser.add_argument('--epochs_T', type=int, default=30, help='number of epochs to train')
     parser.add_argument('--epochs_S', type=int, default=30, help='number of epochs to train')
+    parser.add_argument('--epochs_T', type=int, default=30, help='number of epochs to train')
     parser.add_argument('--restart', type=float, default=1)
-    parser.add_argument('--lr_T', type=float, default=1e-2, help='teacher learning rate')
-    parser.add_argument('--lr_S', type=float, default=1e-2, help='student learning rate')
     parser.add_argument('--lr_D', type=float, default=1e-3, help='discriminator learning rate')
+    parser.add_argument('--lr_S', type=float, default=1e-2, help='target model learning rate')
+    parser.add_argument('--lr_T', type=float, default=1e-2, help='source model learning rate')
     parser.add_argument('--seed', type=int, default=None, help='random seed')
     args = parser.parse_args()
     main(args)
