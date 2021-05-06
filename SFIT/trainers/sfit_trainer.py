@@ -35,11 +35,11 @@ class SFITTrainer(object):
         self.id_loss = nn.L1Loss()
         self.content_loss = nn.L1Loss()
         self.tv_loss = TotalVariationLoss()
-        self.batchsim_loss = BatchSimilarityLoss()
-        self.imagesem_loss = ImageSemanticLoss()
+        self.batchsim_loss = BatchSimLoss()
+        self.imagesem_loss = PixelSimLoss()
         self.style_loss = StyleLoss()
-        self.channel_loss = ChannelLoss2D() if use_channel else StyleLoss()
-        self.channel_loss_1d = ChannelLoss()
+        self.channel_loss = ChannelSimLoss() if use_channel else StyleLoss()
+        self.channel_loss_1d = ChannelSimLoss1D()
         self.mAvrgAlpha = mAvrgAlpha
 
         # self.confidence_thres = confidence_thres

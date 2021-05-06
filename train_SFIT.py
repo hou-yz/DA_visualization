@@ -301,7 +301,7 @@ if __name__ == '__main__':
     parser.add_argument('--conf_ratio', type=float, default=0)
     parser.add_argument('--div_ratio', type=float, default=0)
     parser.add_argument('--js_ratio', type=float, default=0)
-    parser.add_argument('--bn_ratio', type=float, default=1)
+    parser.add_argument('--bn_ratio', type=float, default=0)
     parser.add_argument('--style_ratio', type=float, default=0)
     parser.add_argument('--channel_ratio', type=float, default=1)
     parser.add_argument('--content_ratio', type=float, default=0)
