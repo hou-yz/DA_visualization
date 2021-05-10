@@ -14,8 +14,7 @@ from SFIT.utils.meters import AverageMeter
 
 
 class SFITTrainer(object):
-    def __init__(self, net_G, net_S, net_T, logdir, KD_T, use_channel, ratios, confidence_thres, mAvrgAlpha,
-                 test_visda=False):
+    def __init__(self, net_G, net_S, net_T, logdir, opts, test_visda=False):
         super(SFITTrainer, self).__init__()
         self.net_G = net_G
         self.net_S = net_S
@@ -28,24 +27,19 @@ class SFITTrainer(object):
         self.test_visda = test_visda
         self.D_loss = nn.MSELoss()
         self.MMD_loss = MMDLoss()
-        self.KD_loss = KDLoss(KD_T)
+        self.KD_loss = KDLoss(opts.KD_T)
         self.JS_loss = JSDivLoss()
         self.bn_loss = nn.MSELoss()
         self.cyc_loss = nn.L1Loss()
         self.id_loss = nn.L1Loss()
         self.content_loss = nn.L1Loss()
         self.tv_loss = TotalVariationLoss()
-        self.batchsim_loss = BatchSimLoss()
-        self.imagesem_loss = PixelSimLoss()
+        self.batch_loss = BatchSimLoss()
+        self.pixel_loss = PixelSimLoss()
         self.style_loss = StyleLoss()
-        self.channel_loss = ChannelSimLoss() if use_channel else StyleLoss()
+        self.channel_loss = ChannelSimLoss() if opts.use_channel else StyleLoss()
         self.channel_loss_1d = ChannelSimLoss1D()
-        self.mAvrgAlpha = mAvrgAlpha
-
-        # self.confidence_thres = confidence_thres
-        self.conf_ratio, self.div_ratio, self.js_ratio, self.bn_ratio, self.style_ratio, self.channel_ratio, self.content_ratio, \
-        self.a_ratio, self.semantic_ratio, self.id_ratio, self.kd_ratio, self.sim_ratio, self.tv_ratio, self.T_semantic_ratio, self.T_sim_ratio = ratios
-        self.confidence_thres = confidence_thres
+        self.opts = opts
 
     def train_net_G(self, epoch, target_loader, optimizer_G, pretrain=False, scheduler=None, log_interval=1000):
         # -----------------
@@ -75,7 +69,7 @@ class SFITTrainer(object):
 
         t0 = time.time()
 
-        loss_conf, loss_G_BN, loss_cyc, loss_sim, loss_semantic, loss_content, = \
+        loss_conf, loss_G_BN, loss_cyc, loss_batch, loss_pixel, loss_content, = \
             torch.zeros([]).cuda(), torch.zeros([]).cuda(), torch.zeros([]).cuda(), \
             torch.zeros([]).cuda(), torch.zeros([]).cuda(), torch.zeros([]).cuda()
 
@@ -87,7 +81,7 @@ class SFITTrainer(object):
 
             # real target
             with torch.no_grad():
-                if self.content_ratio or pretrain:
+                if self.opts.content_ratio or pretrain:
                     output_tgt_S, featmaps_tgt_S = self.net_S(real_tgt_img, out_featmaps=True)
                 output_tgt_T, featmaps_tgt_T = self.net_T(real_tgt_img, out_featmaps=True)
             cur_means, cur_vars = [], []
@@ -103,10 +97,10 @@ class SFITTrainer(object):
                         running_means.append(cur_means[layer_id])
                         running_vars.append(cur_vars[layer_id])
                     else:
-                        running_means[layer_id] = running_means[layer_id].detach() * (1 - self.mAvrgAlpha) + \
-                                                  cur_means[layer_id] * self.mAvrgAlpha
-                        running_vars[layer_id] = running_vars[layer_id].detach() * (1 - self.mAvrgAlpha) + \
-                                                 cur_vars[layer_id] * self.mAvrgAlpha
+                        running_means[layer_id] = running_means[layer_id].detach() * (1 - self.opts.mAvrgAlpha) + \
+                                                  cur_means[layer_id] * self.opts.mAvrgAlpha
+                        running_vars[layer_id] = running_vars[layer_id].detach() * (1 - self.opts.mAvrgAlpha) + \
+                                                 cur_vars[layer_id] * self.opts.mAvrgAlpha
                     loss_G_BN += self.bn_loss(stat_means[layer_id], running_means[layer_id]) + \
                                  self.bn_loss(torch.sqrt(stat_vars[layer_id]), torch.sqrt(running_vars[layer_id]))
                 loss_G_BN = loss_G_BN / len(stat_means)
@@ -114,12 +108,15 @@ class SFITTrainer(object):
             loss_style = torch.zeros([]).cuda()
             for layer_id in range(len(featmaps_tgt_T) - 1):
                 loss_style += self.style_loss(featmaps_src_S[layer_id], featmaps_tgt_T[layer_id])
-            # channel (semantic preserving)
+            # similarity preserving
             loss_channel = self.channel_loss(featmaps_src_S[-2], featmaps_tgt_T[-2])
             # loss_channel = self.channel_loss_1d(featmaps_src_S[-1], featmaps_tgt_T[-1])
+            loss_batch = self.batch_loss(featmaps_src_S[-2], featmaps_tgt_T[-2])
+            loss_pixel = self.pixel_loss(featmaps_src_S[-2], featmaps_tgt_T[-2])
+            # kd
             loss_kd = self.KD_loss(output_src_S, output_tgt_T)
             # content
-            if self.content_ratio or pretrain:
+            if self.opts.content_ratio or pretrain:
                 loss_content = self.content_loss(featmaps_src_S[-2], featmaps_tgt_S[-2])
             else:
                 loss_content = torch.zeros([]).cuda()
@@ -127,20 +124,18 @@ class SFITTrainer(object):
             loss_id = self.id_loss(gen_src_img, real_tgt_img)
             loss_tv = self.tv_loss(gen_src_img)[1]
             loss_activation = -featmaps_src_S[-2].abs().mean()
-            loss_sim = self.batchsim_loss(featmaps_src_S[-2], featmaps_tgt_T[-2])
-            loss_semantic = self.imagesem_loss(featmaps_src_S[-2], featmaps_tgt_T[-2])
             # SHOT loss
             loss_conf = self.H_loss(output_src_S)
             avg_cls = torch.nn.functional.softmax(output_src_S, dim=1).mean(dim=0)
             loss_div = -(avg_cls * torch.log(avg_cls)).sum()
             # co-training
             loss_js = self.JS_loss(output_tgt_T, output_src_S)
-            loss_G = loss_conf * self.conf_ratio - loss_div * self.div_ratio + loss_js * self.js_ratio + \
-                     loss_content * self.content_ratio + loss_style * self.style_ratio + loss_channel * self.channel_ratio + \
-                     loss_id * self.id_ratio + loss_kd * self.kd_ratio + loss_tv * self.tv_ratio + \
-                     loss_sim * self.sim_ratio + loss_semantic * self.semantic_ratio
+            loss_G = loss_conf * self.opts.conf_ratio - loss_div * self.opts.div_ratio + loss_js * self.opts.js_ratio + \
+                     loss_content * self.opts.content_ratio + loss_style * self.opts.style_ratio + loss_channel * self.opts.channel_ratio + \
+                     loss_id * self.opts.id_ratio + loss_kd * self.opts.kd_ratio + loss_tv * self.opts.tv_ratio + \
+                     loss_batch * self.opts.batch_ratio + loss_pixel * self.opts.pixel_ratio
             if use_BN_loss:
-                loss_G += loss_G_BN * self.bn_ratio
+                loss_G += loss_G_BN * self.opts.bn_ratio
             # first train the G as a transparent filter
             if pretrain:
                 loss_G = loss_id + loss_content + self.KD_loss(output_src_S, output_tgt_S)
@@ -168,7 +163,7 @@ class SFITTrainer(object):
                       f'bn: {loss_avg_bn.avg:.5f}, channel: {loss_avg_channel.avg:.5f}, kd: {loss_avg_kd.avg:.3f}], '
                       f'Time: {t_epoch:.3f}')
                 self.sample_image(real_tgt_img, fname=self.logdir + f'/imgs/{epoch}.png')
-        # print(f'semantic: {loss_semantic.item()}, batch sim: {loss_sim.item()}')
+        # print(f'pixel sim: {loss_pixel.item()}, batch sim: {loss_batch.item()}')
 
         # remove forward hooks registered in this epoch
         for handle in handles:
@@ -202,7 +197,7 @@ class SFITTrainer(object):
             loss_T = loss_conf - loss_div
 
             # generator
-            if use_generator:  # and (self.S_sim_ratio or self.S_semantic_ratio or self.js_ratio):
+            if use_generator:  # and (self.opts.T_batch_ratio or self.opts.T_pixel_ratio or self.opts.js_ratio):
                 with torch.no_grad():
                     gen_src_img = self.net_G(real_tgt_img)
                     output_src_S, featmaps_src_S = self.net_S(gen_src_img, out_featmaps=True)
@@ -213,16 +208,16 @@ class SFITTrainer(object):
                 valid_idx = pred_label_S == pred_label_T
                 loss_conf = self.H_loss(output_tgt_T[valid_idx])
                 # conf = F.softmax(output_src_S, dim=1).max(dim=1)[0]
-                # valid_idx = conf > self.confidence_thres
+                # valid_idx = conf > self.opts.confidence_thres
                 # loss_ce = self.CE_loss(output_tgt_T[valid_idx], pred_label_S[valid_idx])
                 loss_T = loss_conf - loss_div  # + loss_ce
 
-                loss_sim = self.batchsim_loss(featmaps_src_S[-2], featmaps_tgt_T[-2])
-                loss_semantic = self.imagesem_loss(featmaps_src_S[-2], featmaps_tgt_T[-2])
-                loss_T += loss_sim * self.T_sim_ratio + loss_semantic * self.T_semantic_ratio
+                loss_batch = self.batch_loss(featmaps_src_S[-2], featmaps_tgt_T[-2])
+                loss_pixel = self.pixel_loss(featmaps_src_S[-2], featmaps_tgt_T[-2])
+                loss_T += loss_batch * self.opts.T_batch_ratio + loss_pixel * self.opts.T_pixel_ratio
                 # co-training
                 loss_js = self.JS_loss(output_tgt_T, output_src_S)
-                loss_T += loss_js * self.js_ratio
+                loss_T += loss_js * self.opts.js_ratio
 
             optimizer_T.zero_grad()
             loss_T.backward()
@@ -298,15 +293,15 @@ class SFITTrainer(object):
                     # fake source
                     img = self.net_G(img)
                     output, _ = output_S, featmaps_src_S = self.net_S(img, out_featmaps=True)
-                    # channel (semantic preserving)
+                    # channel (pixelsim preserving)
                     # conf = F.softmax(output, dim=1).max(dim=1)[0]
-                    # valid_idx = conf > self.confidence_thres
+                    # valid_idx = conf > self.opts.confidence_thres
                     pred_label = pred_label_T = torch.argmax(output_S, 1)
                     valid_idx = pred_label_T == pred_label_S
                 else:
                     output = self.net_T(img)
                     # conf = F.softmax(output, dim=1).max(dim=1)[0]
-                    # valid_idx = conf > self.confidence_thres
+                    # valid_idx = conf > self.opts.confidence_thres
                     pred_label = torch.argmax(output, 1)
                     valid_idx = torch.ones_like(pred_label).bool()
 

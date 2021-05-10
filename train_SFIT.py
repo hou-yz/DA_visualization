@@ -170,13 +170,7 @@ def main(args):
 
     optimizer_G = optim.Adam(net_G.parameters(), lr=args.lr_G)
 
-    trainer = SFITTrainer(net_G, net_S, net_T, logdir, args.KD_T, args.use_channel,
-                          (args.conf_ratio, args.div_ratio, args.js_ratio,
-                           args.bn_ratio, args.style_ratio, args.channel_ratio, args.content_ratio,
-                           args.a_ratio, args.semantic_ratio, args.id_ratio, args.kd_ratio,
-                           args.sim_ratio, args.tv_ratio,
-                           args.T_semantic_ratio, args.T_sim_ratio), args.thres_confidence,
-                          args.mAvrgAlpha, test_visda=args.dataset == 'visda')
+    trainer = SFITTrainer(net_G, net_S, net_T, logdir, args, test_visda=args.dataset == 'visda')
 
     # source network
     fpath = f'logs/{args.da_setting}/{args.dataset}/s_{args.source}/source_model.pth'
@@ -307,16 +301,16 @@ if __name__ == '__main__':
     parser.add_argument('--content_ratio', type=float, default=0)
     parser.add_argument('--id_ratio', type=float, default=0)
     parser.add_argument('--kd_ratio', type=float, default=1)
-    parser.add_argument('--semantic_ratio', type=float, default=0)
-    parser.add_argument('--sim_ratio', type=float, default=0)
+    parser.add_argument('--pixel_ratio', type=float, default=0)
+    parser.add_argument('--batch_ratio', type=float, default=0)
     parser.add_argument('--tv_ratio', type=float, default=0)
     parser.add_argument('--use_channel', type=str2bool, default=True)
     parser.add_argument('--KD_T', type=float, default=1,
                         help='>1 to smooth probabilities in divergence loss, or <1 to sharpen them')
     # target model
     parser.add_argument('--thres_confidence', type=float, default=0.95)
-    parser.add_argument('--T_semantic_ratio', type=float, default=0)
-    parser.add_argument('--T_sim_ratio', type=float, default=0)
+    parser.add_argument('--T_pixel_ratio', type=float, default=0)
+    parser.add_argument('--T_batch_ratio', type=float, default=0)
     parser.add_argument('--G_wait', type=int, default=10)
     parser.add_argument('--epochs_G', type=int, default=30, help='number of epochs to train')
     parser.add_argument('--epochs_T', type=int, default=30, help='number of epochs to train')
