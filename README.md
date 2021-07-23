@@ -15,7 +15,7 @@
 ## Overview
 
 This repo dedicates to visualize the learned knowledge in domain adaptation. 
-To understand the adaptation process, we portray the knowledge difference between the source and target model with image translation, using the source-free image translation (SFIT) method proposed in our [CVPR2021](http://cvpr2021.thecvf.com/) paper *[Visualizing Adapted Knowledge in Domain Transfer]()*.
+To understand the adaptation process, we portray the knowledge difference between the source and target model with image translation, using the source-free image translation (SFIT) method proposed in our [CVPR2021](http://cvpr2021.thecvf.com/) paper *[Visualizing Adapted Knowledge in Domain Transfer](https://arxiv.org/abs/2104.10602)*.
 
 Specifically, we feed the generated source-style image to the source model, and the original target image to the target model, formulating two branches respectively. 
 Through update the generated image, we force similar outputs between the two branches. When such requirements are met, the image difference should compensate for and can represent the knowledge difference between models. 
