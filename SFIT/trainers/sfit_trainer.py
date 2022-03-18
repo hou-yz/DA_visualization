@@ -38,7 +38,6 @@ class SFITTrainer(object):
         self.pixel_loss = PixelSimLoss()
         self.style_loss = StyleLoss()
         self.channel_loss = ChannelSimLoss() if opts.use_channel else StyleLoss()
-        self.channel_loss_1d = ChannelSimLoss1D()
         self.opts = opts
 
     def train_net_G(self, epoch, target_loader, optimizer_G, pretrain=False, scheduler=None, log_interval=1000):

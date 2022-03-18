@@ -12,5 +12,5 @@ class JSDivLoss(nn.Module):
         q = F.softmax(q_output, dim=1)
         log_m = (0.5 * (p + q)).log()
         # F.kl_div(x, y) -> F.kl_div(log_q, p)
-        l_js = 0.5 * (F.kl_div(log_m, p) + F.kl_div(log_m, q))
+        l_js = 0.5 * (F.kl_div(log_m, p, reduction='batchmean') + F.kl_div(log_m, q, reduction='batchmean'))
         return l_js

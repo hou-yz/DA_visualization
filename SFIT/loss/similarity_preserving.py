@@ -37,32 +37,11 @@ class ChannelSimLoss(nn.Module):
         super(ChannelSimLoss, self).__init__()
 
     def forward(self, featmap_src_T, featmap_tgt_S):
-        B, C, H, W = featmap_src_T.shape
-        loss = 0
-        for b in range(B):
-            f_src, f_tgt = featmap_src_T[b].view([C, H * W]), featmap_tgt_S[b].view([C, H * W])
-            A_src, A_tgt = f_src @ f_src.T, f_tgt @ f_tgt.T
-            A_src, A_tgt = F.normalize(A_src, p=2, dim=1), F.normalize(A_tgt, p=2, dim=1)
-            loss += torch.norm(A_src - A_tgt) ** 2 / C
-            # loss += torch.norm(A_src - A_tgt, p=1)
-        loss /= B
-        return loss
-
-
-class ChannelSimLoss1D(nn.Module):
-    def __init__(self):
-        super(ChannelSimLoss1D, self).__init__()
-
-    def forward(self, feat_src_T, feat_tgt_S):
-        B, C = feat_src_T.shape
-        loss = torch.zeros([]).cuda()
-        for b in range(B):
-            f_src, f_tgt = feat_src_T[b].view([C, 1]), feat_tgt_S[b].view([C, 1])
-            A_src, A_tgt = f_src @ f_src.T, f_tgt @ f_tgt.T
-            A_src, A_tgt = F.normalize(A_src, p=2, dim=1), F.normalize(A_tgt, p=2, dim=1)
-            loss += torch.norm(A_src - A_tgt) ** 2 / C
-            # loss += torch.norm(A_src - A_tgt, p=1)
-        loss /= B
+        B, C = featmap_src_T.shape[:2]
+        f_src, f_tgt = featmap_src_T.view([B, C, -1]), featmap_tgt_S.view([B, C, -1])
+        A_src, A_tgt = torch.bmm(f_src, f_src.permute([0, 2, 1])), torch.bmm(f_tgt, f_tgt.permute([0, 2, 1]))
+        A_src, A_tgt = F.normalize(A_src, p=2, dim=1), F.normalize(A_tgt, p=2, dim=1)
+        loss = torch.mean(torch.norm(A_src - A_tgt, dim=(1, 2)) ** 2 / C)
         return loss
 
 
@@ -80,6 +59,5 @@ if __name__ == '__main__':
     l4 = style_loss(feat1, feat2)
 
     feat1, feat2 = torch.ones([16, 2048]), torch.zeros([16, 2048])
-    channel_loss = ChannelSimLoss1D()
     l1 = channel_loss(feat1, feat2)
     pass

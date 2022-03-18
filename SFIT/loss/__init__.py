@@ -4,5 +4,5 @@ from .mmd import MMDLoss
 from .js_div import JSDivLoss
 from .total_variation import TotalVariationLoss
 from .entropy import HLoss
-from .similarity_preserving import BatchSimLoss, PixelSimLoss, ChannelSimLoss, ChannelSimLoss1D
+from .similarity_preserving import BatchSimLoss, PixelSimLoss, ChannelSimLoss
 from .style_loss import StyleLoss

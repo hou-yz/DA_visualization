@@ -18,5 +18,5 @@ class KDLoss(nn.Module):
         p = F.softmax(teacher_output / self.temperature, dim=1)
         # F.kl_div(x, y) -> F.kl_div(log_q, p)
         # l_n = y_n \cdot \left( \log y_n - x_n \right) = p * log(p/q)
-        l_kl = F.kl_div(log_q, p)  # forward KL
+        l_kl = F.kl_div(log_q, p, reduction='batchmean')  # forward KL
         return l_kl
